@@ -1,39 +1,30 @@
-tool-translate-CN-VI/
-├── dicts/                          # THƯ MỤC CHỨA TẤT CẢ TỪ ĐIỂN
-│   ├── global/                     # Data dùng chung (Luôn nạp khi mở App)
-│   │   ├── VietPhrase.txt          # Từ điển VietPhrase chính
-│   │   ├── LuatNhan.txt            # Luật nhân xưng, ngữ cảnh
-│   │   ├── HanViet.txt             # Âm Hán Việt đơn từ (Fallback cuối)
-│   │   └── Names_Global.txt        # Tên chung (Tông môn, xưng hô, địa danh phổ biến)
-│   │
-│   └── projects/                   # Data riêng từng bộ truyện (Chỉ nạp khi chọn)
-│       ├── DauLaDaiLuc.txt         # Name riêng truyện Đấu La Đại Lục
-│       ├── ToanChucCaoThu.txt      # Name riêng truyện Toàn Chức Cao Thủ
-│       └── Untitled_Project.txt    # Name riêng mặc định khi chưa chọn dự án
+translation_tool/
 │
-├── src/                            # MÃ NGUỒN CHÍNH CỦA TOOL
-│   ├── __init__.py
-│   │
-│   ├── core/                       # ENGINE XỬ LÝ LOGIC DỊCH THUẬT
+├── src/                        # Toàn bộ mã nguồn của ứng dụng
+│   ├── core/                   # [Tầng logic] Độc lập hoàn toàn, không dính dáng đến UI
 │   │   ├── __init__.py
-│   │   ├── dict_loader.py          # Quản lý đọc/nạp file từ điển (Global & Projects)
-│   │   ├── translator.py           # Thuật toán dịch Max Matching (Ưu tiên đè Name)
-│   │   └── text_processor.py       # Xử lý dấu câu, viết hoa, xóa khoảng trắng thừa
+│   │   ├── dict_loader.py      # Nạp từ điển vào RAM (Hash Map O(1))
+│   │   ├── text_processor.py   # Cắt tách đoạn văn, xử lý token
+│   │   └── translator.py       # Thuật toán dịch và bóc tách từ vựng
 │   │
-│   ├── ui/                         # GIAO DIỆN NGƯỜI DÙNG (PyQt6 / CustomTkinter)
-│   │   ├── __init__.py
-│   │   ├── main_window.py          # Màn hình chính (Khung dịch 2 bên, chọn Dự án)
-│   │   ├── dialog_add_name.py      # Popup "Thêm Name Nhanh" (Lưu vào dự án đang chọn)
-│   │   └── dialog_dict_manager.py  # Cửa sổ quản lý / chỉnh sửa file từ điển
+│   ├── web/                    # [Tầng giao diện] HTML, CSS, JS cho trình duyệt
+│   │   ├── static/
+│   │   │   ├── css/
+│   │   │   │   └── style.css   # Giao diện, bảng bóc tách từ, tối ưu gõ Telex
+│   │   │   └── js/
+│   │   │       └── app.js      # Xử lý sự kiện, gọi API dịch thuật
+│   │   │
+│   │   └── templates/
+│   │       └── index.html      # Trang giao diện chính
 │   │
-│   └── utils/                      # TIỆN ÍCH PHỤ TRỢ
-│       ├── __init__.py
-│       └── config_manager.py       # Lưu cài đặt người dùng (Đường dẫn từ điển, Font,...)
+│   └── server.py               # [Tầng cầu nối] Flask / FastAPI server điều phối
 │
-├── tests/                          # CODE KIỂM THỬ TỰ ĐỘNG
-│   └── test_translation.py         # Test thử thuật toán dịch và độ ưu tiên Name
+├── dicts/                      # [Kho dữ liệu tĩnh] Chứa file VietPhrase, Names, Luật Nhân
+│   ├── VietPhrase.txt
+│   └── Names.txt
 │
-├── .gitignore                      # Khai báo các file KHÔNG đưa lên Git
-├── main.py                         # File chạy chính khởi động ứng dụng (Entry Point)
-├── README.md                       # Hướng dẫn cài đặt và sử dụng tool
-└── requirements.txt                # Khai báo thư viện (PyQt6, v.v.)
+├── projects/                   # Thư mục lưu file truyện gốc và bản dịch
+│
+├── main.py                     # [File khởi chạy chính] Gọi server.py để bật web server cục bộ
+├── requirements.txt            # Danh sách thư viện (Flask/FastAPI, uvicorn, v.v.)
+└── README.md

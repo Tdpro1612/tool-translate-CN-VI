@@ -12,9 +12,8 @@ from src.ui.main_window import MainWindow
 def main():
     app = QApplication(sys.argv)
 
-    # 1. Khởi tạo và nạp từ điển Global
+    # 1. Khởi tạo DictLoader (Hệ thống đã tự động quét thư mục và nạp toàn bộ global vào RAM cache)
     dict_loader = DictLoader()
-    dict_loader.load_global_dicts()
 
     # 2. Khởi tạo Engine dịch
     translator = Translator(dict_loader)

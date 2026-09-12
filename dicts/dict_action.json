@@ -1,0 +1,22 @@
+{
+    "global_settings": {
+        "LuatNhan.txt": {
+            "priority": 15,
+            "is_deletable": false
+        },
+        "VietPhrase.txt": {
+            "priority": 10,
+            "is_deletable": false
+        }
+    },
+    "project_settings": {
+        "names_yugioh_full_card.txt": {
+            "priority": 20,
+            "is_checked": true
+        },
+        "names_harry_potter.txt": {
+            "priority": 20,
+            "is_checked": false
+        }
+    }
+}

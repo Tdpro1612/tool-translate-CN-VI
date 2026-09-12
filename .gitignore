@@ -2,3 +2,8 @@
 *:Zone.Identifier
 ta_bat_hack_trong_yugioh/
 output/
+.cython/
+.cpython-*/
+.pyc
+__pycache__/
+.cpython
