@@ -17,6 +17,7 @@ class DictLoader:
         # Khởi động hệ thống: Đồng bộ thư mục, config và nạp toàn bộ global dicts vào RAM ngay lập tức
         self._init_system_flow()
         self.load_all_globals_to_ram()
+        self.load_checked_projects_to_ram()
 
     # ==========================================
     # KHỐI 1: CƠ CHẾ ĐỌC FILE & PARSE AN TOÀN
@@ -35,7 +36,11 @@ class DictLoader:
                         line = line.strip()
                         if '=' in line and not line.startswith('#'):
                             key, val = line.split('=', 1)
-                            result[key.strip()] = val.strip().split('/')[0]
+                            clean_val = val.strip().split('/')[0].strip()
+                            # Loại bỏ dấu ngoặc kép thừa ở đầu và cuối chuỗi nghĩa nếu có
+                            if clean_val.startswith('"') and clean_val.endswith('"'):
+                                clean_val = clean_val[1:-1].strip()
+                            result[key.strip()] = clean_val
                 break
             except UnicodeDecodeError:
                 continue
@@ -157,7 +162,18 @@ class DictLoader:
             data = self.load_file_to_dict(file_path)
         
         return data.get(chinese_word) is not None
-
+    
+    def load_checked_projects_to_ram(self):
+        """Nạp toàn bộ các file project đang có trạng thái is_checked = True vào RAM khi khởi động"""
+        config = self.load_config()
+        project_settings = config.get("project_settings", {})
+        projects_path = os.path.join(self.dicts_dir, "projects")
+        
+        for fname, settings in project_settings.items():
+            if settings.get("is_checked", False):
+                file_path = os.path.join(projects_path, fname)
+                if os.path.exists(file_path):
+                    self.ram_cache["projects"][fname] = self.load_file_to_dict(file_path)
     # ==========================================
     # KHỐI 4: ĐIỀU KHIỂN TRẠNG THÁI TƯỜNG MINH (PROJECT SETTER)
     # ==========================================
@@ -216,8 +232,13 @@ class DictLoader:
         seen_keys = set()
         unique_entries = []
         for item in entries:
-            src = item['src'].strip()
-            val = item['val'].strip()
+            src = (item.get('src') or '').strip()
+            # Chấp nhận cả 2 tên khóa: 'val' (dùng nội bộ, vd trong
+            # update_or_add_word_to_project) và 'dst' (frontend gửi lên từ
+            # popup Name Manager qua /api/project/save-details). Trước đây
+            # code chỉ đọc 'val' nên khi frontend gửi 'dst' sẽ bị KeyError
+            # và save luôn báo lỗi.
+            val = (item.get('val') if item.get('val') is not None else item.get('dst', '')).strip()
             if src and src not in seen_keys:
                 seen_keys.add(src)
                 unique_entries.append({"src": src, "val": val})
@@ -256,3 +277,40 @@ class DictLoader:
             os.remove(target_path)
             self._init_system_flow()
             self.load_all_globals_to_ram()
+
+    def update_or_add_word_to_project(self, filename, src, dst):
+            """Thêm mới hoặc cập nhật một từ vào file project (Name), đồng thời cập nhật RAM cache"""
+            file_path = os.path.join(self.dicts_dir, "projects", filename)
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            # Đọc dữ liệu hiện tại của file project
+            entries_dict = self.load_file_to_dict(file_path)
+            
+            # Cập nhật hoặc thêm từ mới
+            entries_dict[src.strip()] = dst.strip()
+            
+            # Chuyển đổi lại thành list để tận dụng hàm sắp xếp và ghi file có sẵn
+            entries = [{"src": k, "val": v} for k, v in entries_dict.items()]
+            self.save_project_name_details(filename, entries)
+
+    def delete_word_from_project(self, filename, src):
+        """
+        Xóa đúng 1 từ khỏi file project theo khóa 'src' (Hán tự) — KHÔNG dựa
+        vào vị trí/index trong danh sách hiển thị. 'src' là khóa duy nhất
+        (dict key) nên xóa theo khóa này không bao giờ bị lệch, kể cả khi
+        danh sách phía client đã bị sắp xếp lại, phân trang hay re-render.
+        """
+        file_path = os.path.join(self.dicts_dir, "projects", filename)
+        entries_dict = self.load_file_to_dict(file_path)
+
+        src_key = src.strip()
+        if src_key not in entries_dict:
+            # Không tìm thấy từ cần xóa -> coi như không có gì để làm,
+            # không raise lỗi để tránh vỡ luồng nếu người dùng bấm xóa 2 lần liên tiếp
+            return False
+
+        del entries_dict[src_key]
+
+        entries = [{"src": k, "val": v} for k, v in entries_dict.items()]
+        self.save_project_name_details(filename, entries)
+        return True
