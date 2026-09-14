@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Hệ Thống Dịch Truyện & Quản Lý Từ Điển</title>
+    <!-- Import CSS của cả 3 khối -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/translate_chapter.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/translate_and_export_epub_file.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/import_export_dictionary.css') }}">
+    <style>
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; }
+        .app-navbar { display: flex; background: #1a202c; color: white; padding: 0 20px; align-items: center; height: 50px; justify-content: space-between; }
+        .app-navbar .nav-links { display: flex; gap: 10px; }
+        .nav-btn { background: transparent; border: none; color: #a0aec0; padding: 8px 16px; cursor: pointer; font-size: 14px; font-weight: 500; border-radius: 4px; transition: all 0.2s; }
+        .nav-btn:hover, .nav-btn.active { background: #2d3748; color: white; }
+        
+        /* Ẩn tất cả tab mặc định, thiết lập chiều cao chuẩn trừ thanh navbar */
+        .tab-content { 
+            display: none !important; 
+            height: calc(100vh - 50px); 
+            max-height: calc(100vh - 50px);
+            overflow-y: auto; 
+            box-sizing: border-box; 
+        }
+        
+        /* Chỉ hiện duy nhất tab có class active */
+        .tab-content.active { 
+            display: flex !important; 
+            flex-direction: column; 
+        }
+        
+        /* Riêng UI 2 căn giữa nội dung */
+        #ui2.active { 
+            justify-content: center; 
+            align-items: center; 
+            background: white; 
+            padding: 20px; 
+        }
+        .tab-content#ui3.active { flex-direction: column; }
+    </style>
+</head>
+<body>
+
+    <!-- Thanh Điều Hướng 3 Khối -->
+    <div class="app-navbar">
+        <div style="font-weight: bold; font-size: 16px;">📖 Novel Translator System</div>
+        <div class="nav-links">
+            <button class="nav-btn active" onclick="switchTab('ui1', this)">UI 1: Dịch Chương & Sidebar</button>
+            <button class="nav-btn" onclick="switchTab('ui2', this)">UI 2: Dịch & Xuất EPUB</button>
+            <button class="nav-btn" onclick="switchTab('ui3', this)">UI 3: Quản Lý Từ Điển & Name</button>
+        </div>
+    </div>
+
+    <!-- KHỐI 1: CHAPTER TRANSLATOR & SIDEBAR -->
+    <div id="ui1" class="tab-content active translator-container">
+        <div class="workspace-main">
+            
+            <div class="columns-wrapper">
+                <div class="column-pane">
+                    <h4>Văn bản Tiếng Trung gốc</h4>
+                    <textarea id="sourceChapterContent" class="text-content-editable" placeholder="Dán nội dung tiếng Trung vào đây... (Click đúp hoặc bôi đen câu để tra cứu Sidebar)"></textarea>
+                </div>
+                <div class="column-pane">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin: 0;">Bản dịch Tiếng Việt</h4>
+                        <button class="btn btn-primary" onclick="handleManualTranslate()">Translate</button>
+                    </div>
+                    <div id="targetChapterContent" class="translated-output-box"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Popup chỉnh sửa câu khi click -->
+    <div id="sentenceModalOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+        <div id="sentenceModalContent" style="background: white; padding: 20px; border-radius: 8px; width: 650px; max-width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+            <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Phân Tích Câu & Chỉnh Sửa Từ Điển</h3>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="font-weight: bold; font-size: 13px; color: #555;">Câu gốc (Tiếng Trung):</label>
+                <div id="modalSourceSentence" style="background: #f8f9fa; padding: 8px; border-radius: 4px; font-size: 14px; margin-top: 4px; word-break: break-all;"></div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: bold; font-size: 13px; color: #555;">Bản dịch câu hoàn chỉnh:</label>
+                <textarea id="modalTargetSentence" class="form-control" style="width: 100%; height: 60px; margin-top: 4px; padding: 8px; font-size: 14px; resize: vertical;"></textarea>
+            </div>
+
+            <!-- Khối danh sách dịch từng từ (Token list) kèm 2 ô nhập từ mới cố định ở dưới -->
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: bold; font-size: 13px; color: #555; display: block; margin-bottom: 5px;">Phân tích từng từ (Token Breakdown):</label>
+                
+                <div id="modalTokensContainer" style="max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; background: #fafafa;">
+                    <!-- Các dòng token phân tích từ câu sẽ được đổ vào đây -->
+                </div>
+
+                <!-- Dòng nhập từ mới cố định ở dưới cùng -->
+                <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center; border-top: 1px dashed #cbd5e0; padding-top: 8px;">
+                    <input type="text" id="newWordSrcInput" class="form-control" placeholder="Thêm từ Trung mới..." style="width: 33%;" oninput="checkNewWordReady(this)">
+                    <input type="text" id="newWordDstInput" class="form-control" placeholder="Nghĩa tiếng Việt..." style="width: 42%;" disabled>
+                    <button id="btnSaveNewWord" class="btn btn-primary" style="padding: 6px 12px; font-size: 13px; white-space: nowrap;" disabled onclick="manualSaveQuickNewWord()">Lưu từ</button>
+                </div>
+
+                <!-- Dropdown chọn file Name lưu trữ & nút tạo nhanh file mới -->
+                <div style="margin-top: 12px;">
+                    <label style="font-weight: bold; font-size: 13px; color: #555; display: block; margin-bottom: 4px;">Lưu từ mới vào file Name:</label>
+                    <div style="display: flex; gap: 8px;">
+                        <select id="popupTargetFileSelect" class="form-control" style="flex: 1; padding: 6px; font-size: 14px;">
+                            <!-- Được điền động bằng JavaScript -->
+                        </select>
+                        <button class="btn btn-secondary" style="white-space: nowrap;" onclick="quickCreateProjectFromModal()">+ Tạo file mới</button>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn btn-secondary" onclick="closeSentenceModal()">Đóng</button>
+                <button id="btnSaveSentence" class="btn btn-primary" style="display: none;" onclick="saveSentenceChange()">Lưu lại (Save)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KHỐI 2: DỊCH & XUẤT EPUB -->
+    <div id="ui2" class="tab-content">
+        <div class="card p-4 mt-3" style="background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 800px; width: 100%;">
+            <h3>UI 2: Dịch File Hàng Loạt & Xuất Bản</h3>
+            
+            <!-- Form chọn file và bấm dịch -->
+            <div class="mb-3">
+                <input type="file" id="batchFile" class="form-control" accept=".txt">
+            </div>
+            <button id="btnTranslateFile" class="btn btn-primary">Bắt Đầu Dịch</button>
+
+            <!-- Thanh tiến trình (Progress Bar) -->
+            <div id="progressContainer" class="progress mt-3 d-none">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">Đang dịch...</div>
+            </div>
+
+            <!-- Khu vực hiển thị nút sau khi dịch xong -->
+            <div id="resultActions" class="mt-3 d-none">
+                <a id="btnDownloadTxt" class="btn btn-success" href="#" download>Tải Về File .txt Dịch</a>
+                <button id="btnOpenEpubModal" class="btn btn-secondary">Tạo File EPUB</button>
+            </div>
+        </div>
+
+        <!-- Popup nhập thông tin EPUB (ẩn mặc định) -->
+        <div id="epubModal" class="modal d-none" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content p-3">
+                    <h5>Cấu Hình Xuất File EPUB</h5>
+                    <div class="mb-2">
+                        <label>Tên Sách:</label>
+                        <input type="text" id="epubTitle" class="form-control" placeholder="Nhập tên sách...">
+                    </div>
+                    <div class="mb-2">
+                        <label>Tác Giả:</label>
+                        <input type="text" id="epubAuthor" class="form-control" placeholder="Nhập tên tác giả...">
+                    </div>
+                    <div class="mt-3">
+                        <button id="btnSubmitEpub" class="btn btn-primary">Xác Nhận Tạo EPUB</button>
+                        <button id="btnCloseModal" class="btn btn-light">Hủy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KHỐI 3: DICTIONARY & NAME MANAGER -->
+    <div id="ui3" class="tab-content dict-manager-container">
+        <!-- Bảng 1: Global Dictionaries -->
+        <div class="dict-section">
+            <div class="section-header">
+                <h3>Bảng 1: Global Dictionaries (Read-only)</h3>
+                <div>
+                    <button class="btn btn-primary" onclick="addNewGlobalDict()">Thêm mới</button>
+                    <button class="btn btn-danger" onclick="restoreDefaults()">Restore Default</button>
+                </div>
+            </div>
+            <table class="dict-table">
+                <thead>
+                    <tr>
+                        <th>Tên File & Thông Tin</th>
+                        <th>Priority</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="globalTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Bảng 2: Name Manager (Projects) -->
+        <div class="dict-section">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0;">Bảng 2: Name Manager (Projects)</h3>
+            <div>
+                <button class="btn btn-secondary" onclick="importProjectFile()" style="margin-right: 8px;">Import</button>
+                <button class="btn btn-primary" onclick="createNewProject()">New</button>
+            </div>
+        </div>
+            <table class="dict-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">Bật</th>
+                        <th>Tên File Name & Thông Tin</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="projectsTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Popup Chi Tiết File Name (Dùng cho UI 3) -->
+    <div id="nameDetailModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Quản lý chi tiết</h3>
+                <button class="btn btn-secondary" onclick="closeProjectModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 12px;">
+                    <button class="btn btn-primary" onclick="addNewRowToPopup()">+ Thêm Từ Mới</button>
+                </div>
+                <table class="dict-table">
+                    <thead>
+                        <tr>
+                            <th>Tiếng Trung</th>
+                            <th>Tiếng Việt</th>
+                            <th style="width: 80px;">Xóa</th>
+                        </tr>
+                    </thead>
+                    <tbody id="popupTableBody"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeProjectModal()">Đóng</button>
+                <button class="btn btn-primary" onclick="saveProjectDetails()">Lưu Thay Đổi (Ctrl+S)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import các file JS tương tác -->
+    <script src="{{ url_for('static', filename='js/translate_chapter.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/translate_and_export_epub_file.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/import_export_dictionary.js') }}"></script>
+    <script>
+        function switchTab(tabId, btnElement) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            btnElement.classList.add('active');
+
+            // Reset vị trí cuộn về đầu mỗi khi đổi tab
+            window.scrollTo(0, 0);
+            document.getElementById(tabId).scrollTop = 0;
+
+            if (tabId === 'ui3') {
+                if (typeof loadGlobalDictionaries === 'function') loadGlobalDictionaries();
+                if (typeof loadProjectsList === 'function') loadProjectsList();
+            } else if (tabId === 'ui1') {
+                loadProjectsDropdownForUI1();
+            }
+        }
+        
+        async function loadProjectsDropdownForUI1() {
+            try {
+                const res = await fetch('/api/projects/list');
+                const data = await res.json();
+                const select = document.getElementById('targetProjectSelect');
+                select.innerHTML = '<option value="">-- Chọn file Name mục tiêu lưu từ --</option>';
+                if (data.success && data.projects) {
+                    data.projects.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.name;
+                        opt.textContent = p.name;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch (err) {
+                console.error("Không thể tải danh sách project cho UI1");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadProjectsDropdownForUI1();
+        });
+        
+    </script>
+</body>
+</html>

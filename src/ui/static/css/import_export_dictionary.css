@@ -1,0 +1,159 @@
+/* Tổng quan giao diện quản lý từ điển & name manager */
+.dict-manager-container {
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #333;
+    background-color: #f8f9fa;
+    min-height: 100vh;
+}
+
+.dict-section {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #2c3e50;
+}
+
+/* Bảng dữ liệu */
+.dict-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.dict-table th, .dict-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #edf2f7;
+}
+
+.dict-table th {
+    background-color: #f7fafc;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.dict-table tr:hover {
+    background-color: #f8fafc;
+}
+
+/* Sub-info dòng phụ */
+.sub-info {
+    font-size: 12px;
+    color: #718096;
+    margin-top: 4px;
+}
+
+/* Nút bấm & Action */
+.btn {
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-primary { background-color: #3182ce; color: white; }
+.btn-primary:hover { background-color: #2b6cb0; }
+
+.btn-secondary { background-color: #e2e8f0; color: #4a5568; }
+.btn-secondary:hover { background-color: #cbd5e0; }
+
+.btn-danger { background-color: #e53e3e; color: white; }
+.btn-danger:hover { background-color: #c53030; }
+
+.btn-success { background-color: #38a169; color: white; }
+.btn-success:hover { background-color: #2f855a; }
+
+/* Clickable Name Link */
+.name-link {
+    color: #3182ce;
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+}
+.name-link:hover {
+    text-decoration: underline;
+}
+
+/* Popup Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-overlay.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: white;
+    width: 800px;
+    max-height: 85vh;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.modal-header, .modal-footer {
+    padding: 16px 20px;
+    border-bottom: 1px solid #edf2f7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-footer {
+    border-bottom: none;
+    border-top: 1px solid #edf2f7;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Form Controls trong Popup */
+.form-control {
+    padding: 6px 10px;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-control:disabled {
+    background-color: #edf2f7;
+    cursor: not-allowed;
+}
+
+.error-msg {
+    color: #e53e3e;
+    font-size: 12px;
+    margin-top: 4px;
+}
