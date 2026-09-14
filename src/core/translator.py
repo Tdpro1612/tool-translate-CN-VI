@@ -8,6 +8,11 @@ class Translator:
         """Dịch 1 dòng và trả về danh sách chi tiết từng cụm từ dựa trên RAM cache động"""
         if not line.strip():
             return [], ""
+            
+        
+        # Áp dụng chuẩn hóa dấu câu và dấu phân cách ngay trước khi bắt đầu dịch
+        line = TextProcessor.preprocess_raw_line(line)
+        line = TextProcessor.normalize_punct(line)
 
         i = 0
         n = len(line)
@@ -55,15 +60,33 @@ class Translator:
 
             if not matched:
                 char = line[i]
-                # Fallback sang Hán Việt từ VietPhrase cốt lõi hoặc giữ nguyên ký tự
-                # Giả định lấy ký tự từ file VietPhrase.txt trong global nếu có, không thì giữ nguyên
-                vietphrase_core = active_globals.get("VietPhrase.txt", {})
-                trans_char = vietphrase_core.get(char, char)
-                segments.append({"src": char, "trans": trans_char, "type": "Hán Việt / Dấu câu"})
-                i += 1
+
+                # Nếu KHÔNG phải Hán tự (chữ số, dấu =, chữ Latin, khoảng
+                # trắng, v.v...) thì gom cả CỤM liên tiếp lại thành 1 segment
+                # duy nhất, thay vì xử lý từng ký tự một. Lý do: bên dưới mọi
+                # segment đều được nối lại bằng dấu cách (" ".join). Nếu tách
+                # từng ký tự, một chuỗi "===" hay "99" vốn dính liền trong
+                # nguyên bản sẽ bị chèn dấu cách vào giữa khi ghép lại, ra
+                # kết quả sai như "= = =" hoặc "9 9". Gom nguyên cụm giữ cho
+                # nó dính liền như bản gốc, còn khoảng cách với từ phía
+                # trước/sau vẫn có nhờ dấu cách join giữa các segment.
+                if not ('\u4e00' <= char <= '\u9fff'):
+                    j = i
+                    while j < n and not ('\u4e00' <= line[j] <= '\u9fff'):
+                        j += 1
+                    run = line[i:j]
+                    segments.append({"src": run, "trans": run, "type": "Giữ nguyên (không phải Hán tự)"})
+                    i = j
+                else:
+                    # Fallback sang Hán Việt từ VietPhrase cốt lõi hoặc giữ nguyên ký tự
+                    # Giả định lấy ký tự từ file VietPhrase.txt trong global nếu có, không thì giữ nguyên
+                    vietphrase_core = active_globals.get("VietPhrase.txt", {})
+                    trans_char = vietphrase_core.get(char, char)
+                    segments.append({"src": char, "trans": trans_char, "type": "Hán Việt / Dấu câu"})
+                    i += 1
 
         raw_translated = " ".join([s["trans"] for s in segments])
-        clean_translated = TextProcessor.normalize_punct(raw_translated)
+        clean_translated =  TextProcessor.normalize_punct(raw_translated)
         
         return segments, clean_translated
 
