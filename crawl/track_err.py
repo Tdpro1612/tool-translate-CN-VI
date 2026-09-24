@@ -2,9 +2,9 @@ import asyncio
 import os
 import random
 from playwright.async_api import async_playwright
-from constants import USER_AGENTS, fetch_free_proxies
+from crawl.constants import USER_AGENTS, fetch_free_proxies
 
-INDEX_URL = "https://www.69shuba.com/book/53971/"
+INDEX_URL = "https://www.69shuba.com/book/53446/"
 OUTPUT_DIR = "output"
 LIST_CHAPTER_FILE = "danh_sach_chuong.txt"
 ERR_CHAPTER_FILE = "err_chapter.txt"
