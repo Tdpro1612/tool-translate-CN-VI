@@ -172,3 +172,44 @@ def save_project_details(loader):
     entries = data.get('entries', [])
     loader.save_project_name_details(project_name, entries)
 
+@bp_dict.route('/api/project/delete-entry', methods=['POST'])
+@api_route
+def delete_project_entry(loader):
+    """
+    Xóa đúng 1 từ khỏi file Name theo khóa 'src' (Hán tự), không phụ thuộc
+    index/vị trí trong danh sách hiển thị ở frontend. Đây là cách xóa an
+    toàn, tránh lỗi xóa nhầm dòng khi danh sách đã bị sắp xếp lại / phân
+    trang / re-render ở phía client.
+    """
+    data = request.json or {}
+    project_name = data.get('name')
+    src = (data.get('src') or '').strip()
+    if not project_name or not src:
+        raise ValueError("Thiếu tên file hoặc từ (src) cần xóa")
+    deleted = loader.delete_word_from_project(project_name, src)
+    return {"deleted": deleted}
+
+@bp_dict.route('/api/sentence/check-source', methods=['POST'])
+@api_route
+def check_sentence_source(loader):
+    data = request.json or {}
+    text = data.get('text', '').strip()
+    if not text:
+        return {"file_name": None}
+    
+    # 1. Kiểm tra nhanh trong các project đang được load trên RAM cache
+    for fname, p_dict in loader.ram_cache.get("projects", {}).items():
+        if text in p_dict:
+            return {"file_name": fname}
+    
+    # 2. Nếu chưa có trên RAM, quét toàn bộ các file project trong thư mục projects trên đĩa
+    projects_dir = os.path.join(loader.dicts_dir, "projects")
+    if os.path.exists(projects_dir):
+        for fname in os.listdir(projects_dir):
+            if fname.endswith(".txt"):
+                fpath = os.path.join(projects_dir, fname)
+                p_dict = loader.load_file_to_dict(fpath)
+                if text in p_dict:
+                    return {"file_name": fname}
+                    
+    return {"file_name": None}

@@ -1,30 +1,30 @@
 document.addEventListener("DOMContentLoaded", () => {
-    initTextInteractions();
+    // initTextInteractions();
 });
 
-// 1. Tương tác bắt sự kiện click đúp để phân tích câu đưa sang Sidebar[cite: 5, 8]
-function initTextInteractions() {
-    const sourceTextarea = document.getElementById("sourceChapterContent");
+// 1. Tương tác bắt sự kiện click đúp để phân tích câu đưa sang Sidebar
+// function initTextInteractions() {
+//     const sourceTextarea = document.getElementById("sourceChapterContent");
 
-    sourceTextarea.addEventListener("dblclick", () => {
-        const sentence = getSelectedSentenceOrSelection(sourceTextarea);
-        if (sentence) {
-            openSidebarWithSentence(sentence);
-        }
-    });
-}
+//     sourceTextarea.addEventListener("dblclick", () => {
+//         const sentence = getSelectedSentenceOrSelection(sourceTextarea);
+//         if (sentence) {
+//             openSidebarWithSentence(sentence);
+//         }
+//     });
+// }
 
 function getSelectedSentenceOrSelection(textarea) {
     const text = textarea.value;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
 
-    // Nếu người dùng bôi đen một đoạn ngắn[cite: 5, 8]
+    // Nếu người dùng bôi đen một đoạn ngắn
     if (start !== end) {
         return text.substring(start, end).trim();
     }
 
-    // Nếu chỉ click đúp tại 1 điểm, tự động quét trọn vẹn câu dựa theo dấu ngắt câu[cite: 5, 8]
+    // Nếu chỉ click đúp tại 1 điểm, tự động quét trọn vẹn câu dựa theo dấu ngắt câu
     let left = start;
     let right = start;
     const puncts = ['。', '！', '？', '\n', '.', '!', '?'];
@@ -79,14 +79,14 @@ function renderSidebarTokens(tokens) {
     });
 }
 
-// 2. Cơ chế Auto-save on blur khi chỉnh sửa nghĩa ở Sidebar[cite: 5, 8]
+// 2. Cơ chế Auto-save on blur khi chỉnh sửa nghĩa ở Sidebar
 async function autoSaveWord(inputElement) {
     const src = inputElement.getAttribute("data-src");
     const dst = inputElement.value.trim();
     const targetFile = document.getElementById("targetProjectSelect").value; // File Name mục tiêu chọn sẵn
 
     if (!targetFile) {
-        alert("Chưa chọn file Name mục tiêu để lưu từ[cite: 5, 8]!");
+        alert("Chưa chọn file Name mục tiêu để lưu từ!");
         return;
     }
 
@@ -101,7 +101,7 @@ async function autoSaveWord(inputElement) {
     }
 }
 
-// 3. Thực hiện dịch thủ công toàn bộ chương[cite: 5, 8]
+// 3. Thực hiện dịch thủ công toàn bộ chương
 async function handleManualTranslate() {
     const content = document.getElementById("sourceChapterContent").value;
     try {
@@ -122,14 +122,14 @@ async function handleManualTranslate() {
     }
 }
 
-// 4. Thêm nhanh thủ công 1 cặp từ mới ở đáy Sidebar[cite: 5, 8]
+// 4. Thêm nhanh thủ công 1 cặp từ mới ở đáy Sidebar
 async function handleQuickAddWord() {
     const src = document.getElementById("quickAddSrc").value.trim();
     const dst = document.getElementById("quickAddDst").value.trim();
     const targetFile = document.getElementById("targetProjectSelect").value;
 
     if (!targetFile) {
-        alert("Vui lòng chọn file Name mục tiêu ở thanh công cụ trước[cite: 5, 8]!");
+        alert("Vui lòng chọn file Name mục tiêu ở thanh công cụ trước!");
         return;
     }
     if (!src || !dst) {

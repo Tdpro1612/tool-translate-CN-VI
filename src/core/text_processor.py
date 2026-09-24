@@ -2,20 +2,6 @@ import re
 
 class TextProcessor:
     @staticmethod
-    def preprocess_raw_line(line):
-        """Xử lý và chuẩn hóa dòng tiếng Trung TRƯỚC KHI DỊCH"""
-        # Mở rộng regex để bắt cả số Ả Rập (\d), số Hán tự (一二三...), và các dấu gạch (- —)
-        pattern = r'第\s*([\d一二三四五六七八九十百千零〇\-\—\–]+)\s*章'
-        
-        def replace_chapter(match):
-            num_part = match.group(1).strip()
-            # Nếu bạn muốn giữ nguyên dạng (ví dụ: Chương -, Chương 一) hoặc xử lý tiếp tùy ý
-            return f"章{num_part}"
-
-        line = re.sub(pattern, replace_chapter, line)
-        return line
-
-    @staticmethod
     def normalize_punct(text):
         """Dọn dẹp khoảng trắng thừa và chuẩn hóa dấu câu sau khi dịch"""
         # (Giữ nguyên toàn bộ code normalize_punct cũ của bạn ở đây)
@@ -25,6 +11,7 @@ class TextProcessor:
             '‘': "'", '’': "'", '（': '(', '）': ')',
             '《': '"', '》': '"', '【': '[', '】': ']',
             '、': ',', '…': '...', '—': '-', '～': '~',
+            '·': '-', '「': '"', '」': '"', '『': '"', '』': '"',
         }
         for cn_p, vi_p in punct_map.items():
             text = text.replace(cn_p, vi_p)

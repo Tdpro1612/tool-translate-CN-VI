@@ -1,93 +1,238 @@
 from src.core.text_processor import TextProcessor
+import time
+import re
 
 class Translator:
     def __init__(self, dict_loader):
         self.loader = dict_loader
+        self._merged_projects_cache = None
+        self._merged_projects_cache_key = None
 
-    def translate_with_mapping(self, line):
-        """Dịch 1 dòng và trả về danh sách chi tiết từng cụm từ dựa trên RAM cache động"""
-        if not line.strip():
-            return [], ""
-            
-        
-        # Áp dụng chuẩn hóa dấu câu và dấu phân cách ngay trước khi bắt đầu dịch
-        line = TextProcessor.preprocess_raw_line(line)
-        line = TextProcessor.normalize_punct(line)
+    def _get_merged_projects(self, active_projects):
+        cache_key = id(active_projects)
+        if self._merged_projects_cache_key != cache_key:
+            merged = {}
+            for proj_name, p_dict in active_projects.items():
+                for k, v in p_dict.items():
+                    if k not in merged:  
+                        merged[k] = (v, proj_name)
+            self._merged_projects_cache = merged
+            self._merged_projects_cache_key = cache_key
+        return self._merged_projects_cache
 
-        i = 0
+    def _gather_candidate_rules(self, text, pattern_data):
+        candidates = list(pattern_data["no_literal"])
+        if not text:
+            return candidates
+
+        found_literals = pattern_data["automaton"].find_present_keywords(text)
+        if not found_literals:
+            return candidates
+
+        literal_index = pattern_data["literal_index"]
+        seen_ids = set()
+        for lit in found_literals:
+            bucket = literal_index.get(lit)
+            if not bucket:
+                continue
+            for rule in bucket:
+                rid = id(rule)
+                if rid in seen_ids:
+                    continue
+                literal_parts = rule[3]
+                if len(literal_parts) == 1 or all(lp in found_literals for lp in literal_parts):
+                    seen_ids.add(rid)
+                    candidates.append(rule)
+
+        return candidates
+
+    def _translate_recursive(self, text, active_projects, active_globals, pattern_data, depth=0):
+        segments = []
+        if not text:
+            return segments
+
+        if depth < 6 and pattern_data is not None:
+            candidate_rules = self._gather_candidate_rules(text, pattern_data)
+
+            best_match = None
+            best_rule = None
+            for compiled_re, val_template, seg_type, _literal_parts in candidate_rules:
+                m = compiled_re.search(text)
+                if m is None:
+                    continue
+                if (best_match is None
+                        or m.start() < best_match.start()
+                        or (m.start() == best_match.start() and (m.end() - m.start()) > (best_match.end() - best_match.start()))):
+                    best_match = m
+                    best_rule = (val_template, seg_type)
+
+            if best_match is not None:
+                before = text[:best_match.start()]
+                after = text[best_match.end():]
+                val_template, seg_type = best_rule
+
+                if before:
+                    segments.extend(self._translate_recursive(before, active_projects, active_globals, pattern_data, depth + 1))
+
+                def repl(m):
+                    gname = f"g{m.group(1)}"
+                    raw_captured = best_match.group(gname) or ""
+                    sub_segments = self._translate_recursive(raw_captured, active_projects, active_globals, pattern_data, depth + 1)
+                    return " ".join(s["trans"] for s in sub_segments)
+
+                translated_value = re.sub(r'\{(\d+)\}', repl, val_template)
+                segments.append({"src": best_match.group(0), "trans": translated_value, "type": seg_type})
+
+                if after:
+                    segments.extend(self._translate_recursive(after, active_projects, active_globals, pattern_data, depth + 1))
+
+                return segments
+
+        segments.extend(self._tokenize_plain(text, active_projects, active_globals))
+        return segments
+
+    def _tokenize_plain(self, line, active_projects, active_globals):
         n = len(line)
-        segments = []  # Lưu dạng: [{"src": "游戏", "trans": "Yuya", "type": "Project Name"}, ...]
+        if n == 0:
+            return []
+
+        covered = [False] * n
+        matched_intervals = []
+
+        merged_projects = self._get_merged_projects(active_projects)
+        luat_nhan_dicts = {g_name: g_dict for g_name, g_dict in active_globals.items() if "LuatNhan" in g_name}
+        vietphrase_dict = active_globals.get("VietPhrase.txt", {})
+        other_globals = {g_name: g_dict for g_name, g_dict in active_globals.items() if g_name != "VietPhrase.txt" and "LuatNhan" not in g_name}
+
         max_len = 15
 
-        # Gom nhóm dữ liệu từ RAM cache để phục vụ thuật toán tra cứu nhanh
-        # 1. Lấy tất cả từ điển project đang được load trên RAM (is_checked = True)
-        active_projects = self.loader.ram_cache.get("projects", {})
-        
-        # 2. Lấy tất cả từ điển global đang active trên RAM
-        active_globals = self.loader.ram_cache.get("global", {})
+        def is_free(start, length):
+            return not any(covered[start:start + length])
 
+        # Bước 1: Quét Project
+        i = 0
         while i < n:
+            if covered[i]:
+                i += 1
+                continue
             matched = False
-            
             for l in range(min(max_len, n - i), 0, -1):
-                sub = line[i:i+l]
-
-                # 1. Ưu tiên tra cứu trong các Project Name đang bật
-                found_in_project = False
-                for proj_name, p_dict in active_projects.items():
-                    if sub in p_dict:
-                        segments.append({"src": sub, "trans": p_dict[sub].capitalize(), "type": f"Project ({proj_name})"})
+                if is_free(i, l):
+                    sub = line[i:i+l]
+                    if sub in merged_projects:
+                        trans, proj_name = merged_projects[sub]
+                        seg = {"src": sub, "trans": trans, "type": f"Project ({proj_name})"}
+                        matched_intervals.append((i, i + l, seg))
+                        for idx in range(i, i + l):
+                            covered[idx] = True
                         i += l
                         matched = True
-                        found_in_project = True
                         break
-                if found_in_project:
-                    break
-
-                # 2. Tra cứu trong các từ điển Global (VietPhrase, LuatNhan,...)
-                found_in_global = False
-                for g_name, g_dict in active_globals.items():
-                    if sub in g_dict:
-                        # Phân loại hiển thị nhẹ dựa vào tên file global nếu muốn
-                        seg_type = "VietPhrase" if "VietPhrase" in g_name else ("Luật Nhân" if "LuatNhan" in g_name else g_name)
-                        segments.append({"src": sub, "trans": g_dict[sub], "type": seg_type})
-                        i += l
-                        matched = True
-                        found_in_global = True
-                        break
-                if found_in_global:
-                    break
-
             if not matched:
-                char = line[i]
+                i += 1
 
-                # Nếu KHÔNG phải Hán tự (chữ số, dấu =, chữ Latin, khoảng
-                # trắng, v.v...) thì gom cả CỤM liên tiếp lại thành 1 segment
-                # duy nhất, thay vì xử lý từng ký tự một. Lý do: bên dưới mọi
-                # segment đều được nối lại bằng dấu cách (" ".join). Nếu tách
-                # từng ký tự, một chuỗi "===" hay "99" vốn dính liền trong
-                # nguyên bản sẽ bị chèn dấu cách vào giữa khi ghép lại, ra
-                # kết quả sai như "= = =" hoặc "9 9". Gom nguyên cụm giữ cho
-                # nó dính liền như bản gốc, còn khoảng cách với từ phía
-                # trước/sau vẫn có nhờ dấu cách join giữa các segment.
-                if not ('\u4e00' <= char <= '\u9fff'):
-                    j = i
-                    while j < n and not ('\u4e00' <= line[j] <= '\u9fff'):
-                        j += 1
-                    run = line[i:j]
-                    segments.append({"src": run, "trans": run, "type": "Giữ nguyên (không phải Hán tự)"})
-                    i = j
-                else:
-                    # Fallback sang Hán Việt từ VietPhrase cốt lõi hoặc giữ nguyên ký tự
-                    # Giả định lấy ký tự từ file VietPhrase.txt trong global nếu có, không thì giữ nguyên
-                    vietphrase_core = active_globals.get("VietPhrase.txt", {})
-                    trans_char = vietphrase_core.get(char, char)
-                    segments.append({"src": char, "trans": trans_char, "type": "Hán Việt / Dấu câu"})
-                    i += 1
+        # Bước 2: Quét Luật Nhân
+        i = 0
+        while i < n:
+            if covered[i]:
+                i += 1
+                continue
+            matched = False
+            for l in range(min(max_len, n - i), 0, -1):
+                if is_free(i, l):
+                    sub = line[i:i+l]
+                    found = False
+                    for g_name, g_dict in luat_nhan_dicts.items():
+                        if sub in g_dict:
+                            seg = {"src": sub, "trans": g_dict[sub], "type": g_name}
+                            matched_intervals.append((i, i + l, seg))
+                            for idx in range(i, i + l):
+                                covered[idx] = True
+                            i += l
+                            found = True
+                            matched = True
+                            break
+                    if found:
+                        break
+            if not matched:
+                i += 1
 
-        raw_translated = " ".join([s["trans"] for s in segments])
-        clean_translated =  TextProcessor.normalize_punct(raw_translated)
+        # Bước 3: Quét Global khác và VietPhrase
+        i = 0
+        while i < n:
+            if covered[i]:
+                i += 1
+                continue
+            matched = False
+            for l in range(min(max_len, n - i), 0, -1):
+                if is_free(i, l):
+                    sub = line[i:i+l]
+                    found = False
+                    for g_name, g_dict in other_globals.items():
+                        if sub in g_dict:
+                            seg = {"src": sub, "trans": g_dict[sub], "type": g_name}
+                            matched_intervals.append((i, i + l, seg))
+                            for idx in range(i, i + l):
+                                covered[idx] = True
+                            i += l
+                            found = True
+                            matched = True
+                            break
+                    if found:
+                        break
+
+                    if sub in vietphrase_dict:
+                        seg = {"src": sub, "trans": vietphrase_dict[sub], "type": "VietPhrase"}
+                        matched_intervals.append((i, i + l, seg))
+                        for idx in range(i, i + l):
+                            covered[idx] = True
+                        i += l
+                        matched = True
+                        break
+            if not matched:
+                i += 1
+
+        # Bước 4: Xử lý ký tự còn sót lại
+        i = 0
+        while i < n:
+            if covered[i]:
+                i += 1
+                continue
+
+            j = i
+            char = line[i]
+            if not ('\u4e00' <= char <= '\u9fff'):
+                while j < n and not covered[j] and not ('\u4e00' <= line[j] <= '\u9fff'):
+                    j += 1
+                run = line[i:j]
+                seg = {"src": run, "trans": run, "type": "Giữ nguyên (không phải Hán tự)"}
+                matched_intervals.append((i, j, seg))
+            else:
+                j = i + 1
+                char_sub = line[i:j]
+                trans_char = vietphrase_dict.get(char_sub, char_sub)
+                seg = {"src": char_sub, "trans": trans_char, "type": "Hán Việt / Dấu câu"}
+                matched_intervals.append((i, j, seg))
+
+            for idx in range(i, j):
+                covered[idx] = True
+            i = j
+
+        matched_intervals.sort(key=lambda x: x[0])
+        return [item[2] for item in matched_intervals]
+
+    def translate_with_mapping(self, line):
+        if not line.strip():
+            return [], ""
         
+        line = TextProcessor.normalize_punct(line)
+        active_projects = self.loader.ram_cache.get("projects", {})
+        active_globals = self.loader.ram_cache.get("global", {})
+        pattern_rules = self.loader.ram_cache.get("pattern_rules")
+        segments = self._translate_recursive(line, active_projects, active_globals, pattern_rules)
+        raw_translated = " ".join([s["trans"] for s in segments])
+        clean_translated = TextProcessor.normalize_punct(raw_translated)
+
         return segments, clean_translated
 
     def translate(self, text):

@@ -1,7 +1,73 @@
 import os
 import json
 import shutil
+import os
+import json
+import shutil
+import re
+from collections import deque
+from functools import lru_cache
 
+_PLACEHOLDER_RE = re.compile(r'\{(\d+)\}')
+_PLACEHOLDER_CHARSET = r'[\u4e00-\u9fffA-Za-z0-9\-\—\–]{1,30}'
+
+class _AhoCorasick:
+    def __init__(self, keywords):
+        self._goto = [{}]       
+        self._fail = [0]        
+        self._output = [frozenset()]  
+        self.keywords = list(dict.fromkeys(k for k in keywords if k))  
+
+        output_sets = [set()]
+        for idx, kw in enumerate(self.keywords):
+            state = 0
+            for ch in kw:
+                nxt = self._goto[state].get(ch)
+                if nxt is None:
+                    self._goto.append({})
+                    self._fail.append(0)
+                    output_sets.append(set())
+                    nxt = len(self._goto) - 1
+                    self._goto[state][ch] = nxt
+                state = nxt
+            output_sets[state].add(idx)
+
+        queue = deque()
+        for ch, u in self._goto[0].items():
+            self._fail[u] = 0
+            queue.append(u)
+
+        while queue:
+            r = queue.popleft()
+            for ch, u in list(self._goto[r].items()):
+                queue.append(u)
+                v = self._fail[r]
+                while v != 0 and ch not in self._goto[v]:
+                    v = self._fail[v]
+                nxt_v = self._goto[v].get(ch, 0)
+                self._fail[u] = nxt_v if nxt_v != u else 0
+                output_sets[u] |= output_sets[self._fail[u]]
+
+        self._output = [frozenset(s) for s in output_sets]
+
+    def find_present_keywords(self, text):
+        if not self.keywords:
+            return frozenset()
+        state = 0
+        found_idx = set()
+        goto = self._goto
+        fail = self._fail
+        output = self._output
+        for ch in text:
+            while state and ch not in goto[state]:
+                state = fail[state]
+            state = goto[state].get(ch, 0)
+            if output[state]:
+                found_idx |= output[state]
+        if not found_idx:
+            return frozenset()
+        return frozenset(self.keywords[i] for i in found_idx)
+    
 class DictLoader:
     def __init__(self, dicts_dir="dicts"):
         self.dicts_dir = dicts_dir
@@ -46,10 +112,66 @@ class DictLoader:
                 continue
                 
         return result
-
+    
     # ==========================================
     # KHỐI 2: KHỞI TẠO & ĐỒNG BỘ CẤU HÌNH (File-system Driven)
     # ==========================================
+    @staticmethod
+    @lru_cache(maxsize=10000)
+    def _compile_pattern_key(key):
+        parts = _PLACEHOLDER_RE.split(key)
+        pattern = ''
+        for idx, part in enumerate(parts):
+            if idx % 2 == 0:
+                pattern += re.escape(part)
+            else:
+                pattern += f'(?P<g{part}>{_PLACEHOLDER_CHARSET})'
+        try:
+            return re.compile(pattern)
+        except re.error:
+            return None
+
+    def _build_pattern_rules(self):
+        rules = []
+
+        def _collect(key, val, seg_type):
+            if '{' not in key or not _PLACEHOLDER_RE.search(key):
+                return
+            compiled = self._compile_pattern_key(key)
+            if compiled is None:
+                return
+            literal_parts = [p for p in _PLACEHOLDER_RE.split(key)[0::2] if p]
+            rules.append((compiled, val, seg_type, literal_parts))
+
+        # Chỉ quét các từ điển Luật Nhân trong global
+        for g_name, g_dict in self.ram_cache["global"].items():
+            if "LuatNhan" not in g_name:
+                continue
+            seg_type = "Luật Nhân"
+            for key, val in g_dict.items():
+                _collect(key, val, seg_type)
+
+        all_literals = []
+        literal_index = {}     
+        no_literal_rules = []  
+
+        for rule in rules:
+            literal_parts = rule[3]
+            if not literal_parts:
+                no_literal_rules.append(rule)
+                continue
+            for lp in set(literal_parts):
+                all_literals.append(lp)
+                literal_index.setdefault(lp, []).append(rule)
+
+        automaton = _AhoCorasick(all_literals)
+
+        self.ram_cache["pattern_rules"] = {
+            "automaton": automaton,
+            "literal_index": literal_index,
+            "no_literal": no_literal_rules,
+        }
+        
     def _init_system_flow(self):
         """
         Quét thực tế thư mục global và projects để đồng bộ vào dict_action.json.
@@ -140,6 +262,8 @@ class DictLoader:
             file_path = os.path.join(global_path, fname)
             if os.path.exists(file_path):
                 self.ram_cache["global"][fname] = self.load_file_to_dict(file_path)
+
+        self._build_pattern_rules()
 
     def load_project_to_ram(self, filename):
         """Nạp thủ công một file project vào RAM cache"""
@@ -314,3 +438,10 @@ class DictLoader:
         entries = [{"src": k, "val": v} for k, v in entries_dict.items()]
         self.save_project_name_details(filename, entries)
         return True
+
+
+    
+
+        
+
+
