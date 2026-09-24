@@ -1,30 +1,57 @@
+```
 translation_tool/
 │
-├── src/                        # Toàn bộ mã nguồn của ứng dụng
-│   ├── core/                   # [Tầng logic] Độc lập hoàn toàn, không dính dáng đến UI
+│── .gitignore
+├── README.md
+├── constants.py
+├── danh_sach_chuong.txt
+├── dicts
+│   ├── default_data
+│   │   ├── dictionary
+│   │   │   ├── Han_Viet.txt
+│   │   │   ├── LuatNhan.txt
+│   │   │   └── VietPhrase.txt
+│   │   └── names
+│   │       ├── names_harry_potter.txt
+│   │       └── names_yugioh_full_card.txt
+│   ├── dict_action.json
+│   ├── global
+│   │   ├── Han_Viet.txt
+│   │   ├── LuatNhan.txt
+│   │   └── VietPhrase.txt
+│   └── projects
+│       ├── name_call_yugioh.txt
+│       ├── name_card_yugioh_global.txt
+│       ├── names_harry_potter.txt
+│       └── names_yugioh_full_card.txt
+├── main.py
+├── requirements.txt
+├── src
+│   ├── __init__.py
+│   ├── core
+│   │   ├── Epub_builder.py
 │   │   ├── __init__.py
-│   │   ├── dict_loader.py      # Nạp từ điển vào RAM (Hash Map O(1))
-│   │   ├── text_processor.py   # Cắt tách đoạn văn, xử lý token
-│   │   └── translator.py       # Thuật toán dịch và bóc tách từ vựng
-│   │
-│   ├── web/                    # [Tầng giao diện] HTML, CSS, JS cho trình duyệt
-│   │   ├── static/
-│   │   │   ├── css/
-│   │   │   │   └── style.css   # Giao diện, bảng bóc tách từ, tối ưu gõ Telex
-│   │   │   └── js/
-│   │   │       └── app.js      # Xử lý sự kiện, gọi API dịch thuật
-│   │   │
-│   │   └── templates/
-│   │       └── index.html      # Trang giao diện chính
-│   │
-│   └── server.py               # [Tầng cầu nối] Flask / FastAPI server điều phối
-│
-├── dicts/                      # [Kho dữ liệu tĩnh] Chứa file VietPhrase, Names, Luật Nhân
-│   ├── VietPhrase.txt
-│   └── Names.txt
-│
-├── projects/                   # Thư mục lưu file truyện gốc và bản dịch
-│
-├── main.py                     # [File khởi chạy chính] Gọi server.py để bật web server cục bộ
-├── requirements.txt            # Danh sách thư viện (Flask/FastAPI, uvicorn, v.v.)
-└── README.md
+│   │   ├── dict_loader.py
+│   │   ├── text_processor.py
+│   │   └── translator.py
+│   └── ui
+│       ├── api
+│       │   ├── api_import_export_dictionary.py
+│       │   ├── api_translate_and_export_epub_file.py
+│       │   └── api_translate_chapter.py
+│       ├── index.html
+│       ├── main_window.py
+│       └── static
+│           ├── css
+│           │   ├── import_export_dictionary.css
+│           │   ├── translate_and_export_epub_file.css
+│           │   └── translate_chapter.css
+│           └── js
+│               ├── import_export_dictionary.js
+│               ├── translate_and_export_epub_file.js
+│               └── translate_chapter.js
+├── test_translation.py
+├── tests
+│   ├── __init__.py
+│   └── test_translation.py
+└── track_err.py
